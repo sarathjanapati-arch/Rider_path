@@ -655,9 +655,14 @@ body::before {
   transition: all 0.2s;
 }
 
-.calendar-nav button:hover {
+.calendar-nav button:hover:not(:disabled) {
   border-color: rgba(170,203,255,.32);
   background: rgba(170,203,255,.08);
+}
+
+.calendar-nav button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .calendar-month-year {

@@ -301,10 +301,36 @@ function MapCanvas({ day, stores, segments, playbackIndex, activeStoreId, onStor
 
 function DatePicker({ dates, selectedDate, onSelectDate, loading }) {
   const [isOpen, setIsOpen] = useState(false);
-  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [currentMonth, setCurrentMonth] = useState(() => {
+    if (selectedDate) {
+      const [year, month] = selectedDate.split('-');
+      return new Date(year, parseInt(month) - 1);
+    }
+    return new Date();
+  });
   const wrapperRef = useRef(null);
 
-  const availableDates = useMemo(() => new Set(dates.map(d => d.day)), [dates]);
+  const normalizeDate = (dateStr) => {
+  const d = new Date(dateStr);
+  return d.toISOString().split('T')[0];
+};
+
+const availableDates = useMemo(() => {
+  const dateSet = new Set(dates.map(d => normalizeDate(d.day)));
+  console.log('Normalized available dates:', Array.from(dateSet));
+  return dateSet;
+}, [dates]);
+
+  // Get available months from the dates array
+  const availableMonths = useMemo(() => {
+    const months = new Set();
+    dates.forEach(d => {
+      const [year, month] = d.day.split('-');
+      months.add(`${year}-${month}`);
+    });
+    console.log('Available months:', Array.from(months));
+    return months;
+  }, [dates]);
 
   useEffect(() => {
     function handleClickOutside(e) {
@@ -355,16 +381,39 @@ function DatePicker({ dates, selectedDate, onSelectDate, loading }) {
 
   const handleSelectDay = (day) => {
     const dateStr = formatDateString(day);
+    console.log('Clicked day:', day, 'Formatted as:', dateStr);
+    console.log('Is available?', availableDates.has(dateStr));
+    console.log('Available dates set:', Array.from(availableDates));
     if (availableDates.has(dateStr)) {
       onSelectDate(dateStr);
       setIsOpen(false);
+    } else {
+      console.warn(`Date ${dateStr} not in available dates`);
     }
   };
 
-  const prevMonth = () => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1));
-  const nextMonth = () => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1));
+  const prevMonth = () => {
+    const newMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1);
+    const yearMonth = `${newMonth.getFullYear()}-${String(newMonth.getMonth() + 1).padStart(2, '0')}`;
+    if (availableMonths.has(yearMonth)) {
+      setCurrentMonth(newMonth);
+    }
+  };
+
+  const nextMonth = () => {
+    const newMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1);
+    const yearMonth = `${newMonth.getFullYear()}-${String(newMonth.getMonth() + 1).padStart(2, '0')}`;
+    if (availableMonths.has(yearMonth)) {
+      setCurrentMonth(newMonth);
+    }
+  };
 
   const monthYearStr = currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+  const prevMonthYearMonth = `${new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1).getFullYear()}-${String(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1).getMonth() + 1).padStart(2, '0')}`;
+  const nextMonthYearMonth = `${new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1).getFullYear()}-${String(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1).getMonth() + 1).padStart(2, '0')}`;
+  const canGoPrev = availableMonths.has(prevMonthYearMonth);
+  const canGoNext = availableMonths.has(nextMonthYearMonth);
 
   return html`
     <div ref=${wrapperRef} className="calendar-wrapper">
@@ -379,8 +428,8 @@ function DatePicker({ dates, selectedDate, onSelectDate, loading }) {
         <div className="calendar-popup">
           <div className="calendar-header">
             <div className="calendar-nav">
-              <button onClick=${prevMonth}>← Prev</button>
-              <button onClick=${nextMonth}>Next →</button>
+              <button onClick=${prevMonth} disabled=${!canGoPrev || dates.length === 0}>← Prev</button>
+              <button onClick=${nextMonth} disabled=${!canGoNext || dates.length === 0}>Next →</button>
             </div>
           </div>
           <div className="calendar-month-year">${monthYearStr}</div>
