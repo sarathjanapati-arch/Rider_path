@@ -299,6 +299,123 @@ function MapCanvas({ day, stores, segments, playbackIndex, activeStoreId, onStor
   `;
 }
 
+function DatePicker({ dates, selectedDate, onSelectDate, loading }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const wrapperRef = useRef(null);
+
+  const availableDates = useMemo(() => new Set(dates.map(d => d.day)), [dates]);
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) {
+        setIsOpen(false);
+      }
+    }
+    if (isOpen) document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isOpen]);
+
+  const getDaysInMonth = (date) => new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+  const getFirstDayOfMonth = (date) => new Date(date.getFullYear(), date.getMonth(), 1).getDay();
+
+  const monthDays = useMemo(() => {
+    const days = [];
+    const firstDay = getFirstDayOfMonth(currentMonth);
+    const daysInMonth = getDaysInMonth(currentMonth);
+    const daysInPrevMonth = getDaysInMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1));
+
+    for (let i = firstDay - 1; i >= 0; i--) {
+      days.push({ day: daysInPrevMonth - i, isOtherMonth: true });
+    }
+    for (let i = 1; i <= daysInMonth; i++) {
+      days.push({ day: i, isOtherMonth: false });
+    }
+    const remaining = 42 - days.length;
+    for (let i = 1; i <= remaining; i++) {
+      days.push({ day: i, isOtherMonth: true });
+    }
+    return days;
+  }, [currentMonth]);
+
+  const formatDateForDisplay = (dateStr) => {
+    if (!dateStr) return "Select date";
+    const parts = dateStr.split('-');
+    if (parts.length !== 3) return "Select date";
+    const [year, month, day] = parts;
+    return `${month}/${day}/${year}`;
+  };
+
+  const formatDateString = (day) => {
+    const year = currentMonth.getFullYear();
+    const month = String(currentMonth.getMonth() + 1).padStart(2, '0');
+    const dayStr = String(day).padStart(2, '0');
+    return `${year}-${month}-${dayStr}`;
+  };
+
+  const handleSelectDay = (day) => {
+    const dateStr = formatDateString(day);
+    if (availableDates.has(dateStr)) {
+      onSelectDate(dateStr);
+      setIsOpen(false);
+    }
+  };
+
+  const prevMonth = () => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1));
+  const nextMonth = () => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1));
+
+  const monthYearStr = currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+  return html`
+    <div ref=${wrapperRef} className="calendar-wrapper">
+      <button
+        className="calendar-trigger"
+        onClick=${() => setIsOpen(!isOpen)}
+        disabled=${loading}
+      >
+        ${formatDateForDisplay(selectedDate)} 📅
+      </button>
+      ${isOpen && html`
+        <div className="calendar-popup">
+          <div className="calendar-header">
+            <div className="calendar-nav">
+              <button onClick=${prevMonth}>← Prev</button>
+              <button onClick=${nextMonth}>Next →</button>
+            </div>
+          </div>
+          <div className="calendar-month-year">${monthYearStr}</div>
+          <div className="calendar-weekdays">
+            ${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day =>
+              html`<div className="calendar-weekday">${day}</div>`
+            )}
+          </div>
+          <div className="calendar-days">
+            ${monthDays.map(item => {
+              const dateStr = formatDateString(item.day);
+              const isAvailable = availableDates.has(dateStr);
+              const isSelected = selectedDate === dateStr;
+              let className = 'calendar-day';
+              if (item.isOtherMonth) className += ' other-month';
+              if (isAvailable && !item.isOtherMonth) className += ' available';
+              if (isSelected) className += ' selected';
+
+              return html`
+                <button
+                  className=${className}
+                  onClick=${() => handleSelectDay(item.day)}
+                  disabled=${item.isOtherMonth || !isAvailable}
+                >
+                  ${item.day}
+                </button>
+              `;
+            })}
+          </div>
+        </div>
+      `}
+    </div>
+  `;
+}
+
 function App() {
   const [authState, setAuthState] = useState({ ready: false, enabled: false, authenticated: false, username: null });
   const [loginForm, setLoginForm] = useState({ username: "", password: "" });
@@ -689,13 +806,12 @@ function App() {
             <div className="grid-two">
               <div className="field">
                 <label>Date</label>
-                <div className="select-shell">
-                  <select className="select" value=${selectedDate} onChange=${e => setSelectedDate(e.target.value)}>
-                    ${filteredDates.length
-                      ? filteredDates.map(item => html`<option key=${item.day} value=${item.day}>${item.day}</option>`)
-                      : html`<option value="">No matching days</option>`}
-                  </select>
-                </div>
+                <${DatePicker}
+                  dates=${filteredDates}
+                  selectedDate=${selectedDate}
+                  onSelectDate=${setSelectedDate}
+                  loading=${loading}
+                />
                 <div className="field-note">${selectedDateMeta ? `${selectedDateMeta.approxKm} km estimated route - ${selectedDateMeta.pings} pings` : "Pick a day to see route and store details."}</div>
               </div>
               <div className="field">
